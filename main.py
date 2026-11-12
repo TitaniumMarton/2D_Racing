@@ -41,7 +41,8 @@ def main():
         # Example: Draw a red rectangle in the center
         pygame.draw.rect(screen, GREEN, (350, 250, 100, 100))
         pygame.draw.rect(screen, YELLOW, (500, 350, 100, 100))
-
+        pygame.draw.rect(screen, RED, (650, 450, 100, 100))
+    
         pygame.display.flip()
 
         # --- Frame Rate Control ---

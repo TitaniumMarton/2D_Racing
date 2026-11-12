@@ -17,6 +17,7 @@ def main():
     RED = (255, 0, 0)
     BLUE = (0, 0, 255)
     GREEN = (0, 255, 0)
+    YELLOW = (255, 255, 0)
 
     # Game clock to control the frame rate
     clock = pygame.time.Clock()
@@ -39,6 +40,7 @@ def main():
         
         # Example: Draw a red rectangle in the center
         pygame.draw.rect(screen, GREEN, (350, 250, 100, 100))
+        pygame.draw.rect(screen, YELLOW, (500, 350, 100, 100))
 
         pygame.display.flip()
 

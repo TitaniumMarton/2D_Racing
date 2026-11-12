@@ -6,8 +6,8 @@ def main():
     pygame.init()
 
     # Screen dimensions
-    screen_width = 800
-    screen_height = 600
+    screen_width = 1920
+    screen_height = 1080
     screen = pygame.display.set_mode((screen_width, screen_height))
     pygame.display.set_caption("Basic Pygame Window")
 

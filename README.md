@@ -19,5 +19,7 @@ python -m pip install -r requirements-build.txt
 ```
 
 The windowed, single-file executable is created at `2D_Racing.exe`. It
-includes the localisation files and does not open a command prompt. The
-executable stores its preferences under `%LOCALAPPDATA%\2D_Racing`.
+includes the localisation and music files and does not open a command prompt.
+The menu plays `music\main_theme.mp3`; gameplay is silent until a separate
+gameplay track is added. Music volume defaults to 20% and can be changed in
+Settings. The executable stores its preferences under `%LOCALAPPDATA%\2D_Racing`.

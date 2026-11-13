@@ -4,6 +4,7 @@
   settings_resolution: "KÉPERNYŐ FELBONTÁS"
   settings_display_mode: "MEGJELENÍTÉSI MÓD"
   settings_language: "NYELV"
+  settings_music_volume: "ZENE HANGEREJE: {percent}%"
   display_mode_fullscreen: "TELJES KÉPERNYŐ"
   display_mode_borderless: "KERET NÉLKÜLI"
   display_mode_windowed: "ABLAK"

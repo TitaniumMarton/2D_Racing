@@ -4,6 +4,7 @@ l_english:
   settings_resolution: "SCREEN RESOLUTION"
   settings_display_mode: "DISPLAY MODE"
   settings_language: "LANGUAGE"
+  settings_music_volume: "MUSIC VOLUME: {percent}%"
   display_mode_fullscreen: "FULLSCREEN"
   display_mode_borderless: "BORDERLESS"
   display_mode_windowed: "WINDOWED"

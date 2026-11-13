@@ -5,7 +5,17 @@ from pathlib import Path
 import pygame
 import yaml
 
-from functions import (render_pixel_text,draw_button,available_languages,load_preferences,load_localisation,get_display_mode_settings,save_preferences)
+from functions import (
+    MAIN_THEME_FILE,
+    available_languages,
+    draw_button,
+    get_display_mode_settings,
+    load_localisation,
+    load_preferences,
+    render_pixel_text,
+    save_preferences,
+    set_music_volume,
+)
 
 RESOLUTIONS = (
     (1920, 1080),
@@ -53,7 +63,7 @@ def main():
 
     #loading preferences and setting initial values
     languages = available_languages()
-    resolution_index, language, display_mode = load_preferences(languages)
+    resolution_index, language, display_mode, music_volume = load_preferences(languages)
 
     # grouped initialization of variables for the main loop
     clock = pygame.time.Clock()
@@ -66,6 +76,8 @@ def main():
     pending_resolution_index = resolution_index
     pending_language = language
     pending_display_mode = display_mode
+    pending_music_volume = music_volume
+    volume_slider_dragging = False
     confirm_previous_resolution_index = resolution_index
     confirm_previous_display_mode = display_mode
     resolution_confirm_deadline = 0
@@ -84,6 +96,12 @@ def main():
     )
     screen = pygame.display.set_mode(screen_size, screen_flags)
     pygame.display.set_caption("2D Racing")
+    if pygame.mixer.get_init() is None:
+        pygame.mixer.init()
+    pygame.mixer.music.load(str(MAIN_THEME_FILE))
+    set_music_volume(music_volume)
+    pygame.mixer.music.play(-1)
+    active_music_context = "menu"
 
     display_mode_labels = {
         mode: translations["display_mode_{}".format(mode)]
@@ -100,7 +118,10 @@ def main():
         ):
             try:
                 save_preferences(
-                    pending_resolution_index, language, pending_display_mode
+                    pending_resolution_index,
+                    language,
+                    pending_display_mode,
+                    pending_music_volume,
                 )
             except OSError as error:
                 print("Could not save settings: {}".format(error), file=sys.stderr)
@@ -113,10 +134,13 @@ def main():
                 display_mode = confirm_previous_display_mode
                 pending_resolution_index = resolution_index
                 pending_display_mode = display_mode
+                pending_music_volume = music_volume
+                set_music_volume(music_volume)
                 settings_message = translations["settings_save_failed"]
             else:
                 resolution_index = pending_resolution_index
                 display_mode = pending_display_mode
+                music_volume = pending_music_volume
                 settings_message = translations["settings_applied"]
             state = "settings"
 
@@ -134,6 +158,18 @@ def main():
         
         language_selector = pygame.Rect(
             selector_x, int(height * 0.60), selector_width, selector_height
+        )
+        music_volume_slider_rect = pygame.Rect(
+            selector_x,
+            int(height * 0.73),
+            selector_width,
+            max(32, int(48 * scale)),
+        )
+        music_volume_track = pygame.Rect(
+            music_volume_slider_rect.x + 12,
+            music_volume_slider_rect.centery - 4,
+            music_volume_slider_rect.width - 24,
+            8,
         )
         mode_group_width = min(int(width * 0.78), 900)
         mode_gap = max(6, int(12 * scale))
@@ -237,6 +273,23 @@ def main():
                             len(dropdown_options) - dropdown_max_rows,
                         ),
                     )
+            elif event.type == pygame.MOUSEBUTTONUP and event.button == 1:
+                volume_slider_dragging = False
+            elif (
+                event.type == pygame.MOUSEMOTION
+                and volume_slider_dragging
+                and state == "settings"
+            ):
+                pending_music_volume = max(
+                    0.0,
+                    min(
+                        1.0,
+                        (event.pos[0] - music_volume_track.left)
+                        / music_volume_track.width,
+                    ),
+                )
+                set_music_volume(pending_music_volume)
+                settings_message = None
             elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                 if state == "menu":
                     if start_button.collidepoint(event.pos):
@@ -246,11 +299,26 @@ def main():
                         pending_resolution_index = resolution_index
                         pending_language = language
                         pending_display_mode = display_mode
+                        pending_music_volume = music_volume
+                        volume_slider_dragging = False
                         settings_message = None
                     elif quit_button.collidepoint(event.pos):
                         running = False
                 elif state == "settings":
-                    if dropdown_rect is not None and dropdown_rect.collidepoint(event.pos):
+                    if music_volume_slider_rect.collidepoint(event.pos):
+                        volume_slider_dragging = True
+                        dropdown_open = None
+                        pending_music_volume = max(
+                            0.0,
+                            min(
+                                1.0,
+                                (event.pos[0] - music_volume_track.left)
+                                / music_volume_track.width,
+                            ),
+                        )
+                        set_music_volume(pending_music_volume)
+                        settings_message = None
+                    elif dropdown_rect is not None and dropdown_rect.collidepoint(event.pos):
                         option_index = dropdown_scroll + (
                             event.pos[1] - dropdown_rect.y
                         ) // row_height
@@ -296,6 +364,7 @@ def main():
                                     resolution_index,
                                     pending_language,
                                     display_mode,
+                                    music_volume,
                                 )
                             except OSError as error:
                                 print(
@@ -352,6 +421,7 @@ def main():
                                                 resolution_index,
                                                 language,
                                                 pending_display_mode,
+                                                pending_music_volume,
                                             )
                                         except OSError as error:
                                             print(
@@ -375,13 +445,17 @@ def main():
                                             ]
                                         else:
                                             display_mode = pending_display_mode
+                                            music_volume = pending_music_volume
                                             settings_message = translations[
                                                 "settings_applied"
                                             ]
                         else:
                             try:
                                 save_preferences(
-                                    resolution_index, pending_language, display_mode
+                                    resolution_index,
+                                    pending_language,
+                                    display_mode,
+                                    pending_music_volume,
                                 )
                             except OSError as error:
                                 print(
@@ -390,6 +464,7 @@ def main():
                                 )
                                 settings_message = translations["settings_save_failed"]
                             else:
+                                music_volume = pending_music_volume
                                 language = pending_language
                                 translations = localisations[language]
                                 display_mode_labels = {
@@ -402,6 +477,17 @@ def main():
                                 settings_message = translations["settings_applied"]
                     elif back_button.collidepoint(event.pos):
                         state = "menu"
+                        pending_music_volume = music_volume
+                        set_music_volume(music_volume)
+                        volume_slider_dragging = False
+
+        music_context = "game" if state == "game" else "menu"
+        if music_context != active_music_context:
+            if music_context == "game":
+                pygame.mixer.music.stop()
+            else:
+                pygame.mixer.music.play(-1)
+            active_music_context = music_context
 
         mouse_position = pygame.mouse.get_pos()
         screen.fill(BACKGROUND)
@@ -482,6 +568,17 @@ def main():
                 language_label,
                 language_label.get_rect(center=(center_x, int(height * 0.56))),
             )
+            music_volume_label = render_pixel_text(
+                small_font,
+                translations["settings_music_volume"].format(
+                    percent=int(round(pending_music_volume * 100))
+                ),
+                MUTED,
+            )
+            screen.blit(
+                music_volume_label,
+                music_volume_label.get_rect(center=(center_x, int(height * 0.68))),
+            )
             draw_button(
                 screen,
                 resolution_selector,
@@ -505,6 +602,39 @@ def main():
                     mouse_position,
                     selected=mode == pending_display_mode,
                 )
+            pygame.draw.rect(
+                screen, BUTTON, music_volume_slider_rect, border_radius=10
+            )
+            pygame.draw.rect(
+                screen,
+                (63, 83, 108),
+                music_volume_slider_rect,
+                width=2,
+                border_radius=10,
+            )
+            pygame.draw.rect(
+                screen, (63, 83, 108), music_volume_track, border_radius=4
+            )
+            music_volume_fill = pygame.Rect(
+                music_volume_track.x,
+                music_volume_track.y,
+                int(music_volume_track.width * pending_music_volume),
+                music_volume_track.height,
+            )
+            if music_volume_fill.width > 0:
+                pygame.draw.rect(
+                    screen, ACCENT, music_volume_fill, border_radius=4
+                )
+            pygame.draw.circle(
+                screen,
+                ACCENT,
+                (
+                    music_volume_track.x
+                    + int(music_volume_track.width * pending_music_volume),
+                    music_volume_track.centery,
+                ),
+                max(8, int(12 * scale)),
+            )
             draw_button(
                 screen,
                 back_button,

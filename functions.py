@@ -1,4 +1,5 @@
 import json
+import math
 import os
 import sys
 from pathlib import Path
@@ -39,6 +40,8 @@ YELLOW = (255, 255, 0)
 # Path definitions for the root directory, localisation files, used in both main.py and functions.py but kept separate to minimize possible import issues
 ROOT_DIR = Path(__file__).resolve().parent
 LOCALISATION_DIR = ROOT_DIR / "localisation"
+MUSIC_DIR = ROOT_DIR / "music"
+MAIN_THEME_FILE = MUSIC_DIR / "main_theme.mp3"
 if getattr(sys, "frozen", False):
     settings_directory = Path(
         os.environ.get(
@@ -50,6 +53,8 @@ else:
     SETTINGS_FILE = ROOT_DIR / "settings.json"
 DEFAULT_LANGUAGE = "english"
 DEFAULT_DISPLAY_MODE = "windowed"
+BASE_MUSIC_VOLUME = 0.2
+DEFAULT_MUSIC_VOLUME = BASE_MUSIC_VOLUME
 LOCALISATION_FILES = ("main_menu.yml", "settings.yml", "game.yml")
 
 
@@ -111,10 +116,22 @@ def load_localisation(language):
             translations[key] = value
     return translations
 
+def _validate_music_volume(volume):
+    """Return a normalized music volume or reject an invalid preference."""
+    if (
+        isinstance(volume, bool)
+        or not isinstance(volume, (int, float))
+        or not math.isfinite(volume)
+        or not 0 <= volume <= 1
+    ):
+        raise ValueError("The saved music volume must be between 0 and 1")
+    return float(volume)
+
+
 def load_preferences(languages):
-    """Load saved display and language preferences, or return defaults."""
+    """Load saved display, language, and audio preferences, or return defaults."""
     if not SETTINGS_FILE.exists():
-        return 0, DEFAULT_LANGUAGE, DEFAULT_DISPLAY_MODE
+        return 0, DEFAULT_LANGUAGE, DEFAULT_DISPLAY_MODE, DEFAULT_MUSIC_VOLUME
 
     with SETTINGS_FILE.open(encoding="utf-8") as file:
         preferences = json.load(file)
@@ -124,16 +141,25 @@ def load_preferences(languages):
     resolution = tuple(preferences.get("resolution", RESOLUTIONS[0]))
     language = preferences.get("language", DEFAULT_LANGUAGE)
     display_mode = preferences.get("display_mode", DEFAULT_DISPLAY_MODE)
+    music_volume = _validate_music_volume(
+        preferences.get("music_volume", DEFAULT_MUSIC_VOLUME)
+    )
     if resolution not in RESOLUTIONS:
         raise ValueError("The saved resolution is not supported")
     if language not in languages:
         raise ValueError("The saved language is not available")
     if display_mode not in DISPLAY_MODES:
         raise ValueError("The saved display mode is not available")
-    return RESOLUTIONS.index(resolution), language, display_mode
+    return RESOLUTIONS.index(resolution), language, display_mode, music_volume
 
-def save_preferences(resolution_index, language, display_mode):
-    """Persist the selected resolution, language, and display mode."""
+def save_preferences(
+    resolution_index,
+    language,
+    display_mode,
+    music_volume=DEFAULT_MUSIC_VOLUME,
+):
+    """Persist the selected resolution, language, display mode, and volume."""
+    music_volume = _validate_music_volume(music_volume)
     SETTINGS_FILE.parent.mkdir(parents=True, exist_ok=True)
     with SETTINGS_FILE.open("w", encoding="utf-8") as file:
         json.dump(
@@ -141,11 +167,18 @@ def save_preferences(resolution_index, language, display_mode):
                 "resolution": list(RESOLUTIONS[resolution_index]),
                 "language": language,
                 "display_mode": display_mode,
+                "music_volume": music_volume,
             },
             file,
             indent=2,
         )
         file.write("\n")
+
+
+def set_music_volume(volume):
+    """Set the current music volume after validating its 0-to-1 range."""
+    pygame.mixer.music.set_volume(_validate_music_volume(volume))
+
 
 def fit_resolution_to_desktop(resolution):
     """Limit a requested window size so it fits within the desktop."""

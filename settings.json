@@ -1,9 +1,9 @@
 {
   "resolution": [
     1920,
-    1200
+    1080
   ],
-  "language": "hungarian",
-  "display_mode": "borderless",
-  "music_volume": 0.28
+  "language": "english",
+  "display_mode": "fullscreen",
+  "music_volume": 0.14112903225806453
 }

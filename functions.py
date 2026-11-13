@@ -2,6 +2,7 @@ import json
 import math
 import os
 import sys
+from datetime import datetime
 from pathlib import Path
 import pygame
 import yaml
@@ -46,14 +47,16 @@ MUSIC_DIR = ROOT_DIR / "music"
 MAIN_THEME_FILE = MUSIC_DIR / "main_theme.mp3"
 # Keep settings outside PyInstaller's temporary bundle so user changes persist.
 if getattr(sys, "frozen", False):
-    settings_directory = Path(
+    USER_DATA_DIR = Path(
         os.environ.get(
             "LOCALAPPDATA", Path.home() / "AppData" / "Local"
         )
     ) / "2D_Racing"
-    SETTINGS_FILE = settings_directory / "settings.json"
 else:
-    SETTINGS_FILE = ROOT_DIR / "settings.json"
+    USER_DATA_DIR = ROOT_DIR
+SETTINGS_FILE = USER_DATA_DIR / "settings.json"
+SAVE_GAMES_DIR = USER_DATA_DIR / "savegames"
+SAVE_SLOT_COUNT = 5
 DEFAULT_LANGUAGE = "english"
 DEFAULT_DISPLAY_MODE = "windowed"
 # Start with quiet music; the settings slider can raise it up to full volume.
@@ -177,6 +180,62 @@ def Save_Preferences(
             indent=2,
         )
         file.write("\n")
+
+
+def Get_Save_Slot_Path(slot_number):
+    """Return the data-file path for one of the five valid save slots."""
+    if (
+        isinstance(slot_number, bool)
+        or not isinstance(slot_number, int)
+        or not 1 <= slot_number <= SAVE_SLOT_COUNT
+    ):
+        raise ValueError("The save slot number must be between 1 and 5")
+    return SAVE_GAMES_DIR / "slot_{}.json".format(slot_number)
+
+
+def Load_Save_Slot(slot_number):
+    """Load and validate one save slot, returning None when it is empty."""
+    save_path = Get_Save_Slot_Path(slot_number)
+    if not save_path.is_file():
+        return None
+
+    with save_path.open(encoding="utf-8") as file:
+        save_data = json.load(file)
+    if (
+        not isinstance(save_data, dict)
+        or isinstance(save_data.get("version"), bool)
+        or not isinstance(save_data.get("version"), int)
+        or save_data.get("version") != 1
+        or not isinstance(save_data.get("slot"), int)
+        or isinstance(save_data.get("slot"), bool)
+        or save_data.get("slot") != slot_number
+        or not isinstance(save_data.get("created_at"), str)
+    ):
+        raise ValueError("The data in save slot {} is invalid".format(slot_number))
+    return save_data
+
+
+def Load_Save_Slots():
+    """Load metadata for all five save slots, with None for each empty slot."""
+    return [
+        Load_Save_Slot(slot_number)
+        for slot_number in range(1, SAVE_SLOT_COUNT + 1)
+    ]
+
+
+def Create_Save_Slot(slot_number):
+    """Create a new save-slot record without overwriting an existing slot."""
+    save_path = Get_Save_Slot_Path(slot_number)
+    SAVE_GAMES_DIR.mkdir(parents=True, exist_ok=True)
+    save_data = {
+        "version": 1,
+        "slot": slot_number,
+        "created_at": datetime.now().astimezone().isoformat(timespec="seconds"),
+    }
+    with save_path.open("x", encoding="utf-8") as file:
+        json.dump(save_data, file, indent=2)
+        file.write("\n")
+    return save_data
 
 
 def Set_Music_Volume(volume):

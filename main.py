@@ -8,11 +8,15 @@ import yaml
 from functions import (
     MAIN_THEME_FILE,
     Available_Languages,
+    Create_Save_Slot,
     Draw_Button,
     Get_Display_Mode_Settings,
     Load_Localisation,
     Load_Preferences,
+    Load_Save_Slot,
+    Load_Save_Slots,
     Render_Pixel_Text,
+    SAVE_SLOT_COUNT,
     Save_Preferences,
     Set_Music_Volume,
 )
@@ -34,6 +38,7 @@ RESOLUTIONS = (
     (800, 600),
 )
 DISPLAY_MODES = ("fullscreen", "borderless", "windowed")
+MENU_TRANSITION_DURATION_MS = 180
 
 # Shared colors keep the screens and helper-drawn controls visually consistent.
 BACKGROUND = (12, 18, 30)
@@ -74,6 +79,10 @@ def Main():
     mode_font = pygame.font.Font(None, 24)
     state = "menu"
     running = True
+    selected_save_slot = None
+    save_slots = []
+    save_slots_error = None
+    transition_started_at = None
     pending_resolution_index = resolution_index
     pending_language = language
     pending_display_mode = display_mode
@@ -93,6 +102,12 @@ def Main():
         for locale, data in localisations.items()
     }
     translations = localisations[language]
+    try:
+        save_slots = Load_Save_Slots()
+    except (OSError, ValueError) as error:
+        print("Could not load save slots: {}".format(error), file=sys.stderr)
+        save_slots = [None] * SAVE_SLOT_COUNT
+        save_slots_error = translations["game_save_slot_error"]
     screen_size, screen_flags = Get_Display_Mode_Settings(
         display_mode, RESOLUTIONS[resolution_index]
     )
@@ -115,6 +130,7 @@ def Main():
     settings_message = None
 
     while running:
+        previous_state = state
         # Accept the pending resolution when its confirmation timer expires.
         if (
             state == "confirm_resolution"
@@ -208,6 +224,19 @@ def Main():
             footer_width,
             footer_height,
         )
+        save_slot_button_width = min(int(width * 0.68), 900)
+        save_slot_button_height = max(44, int(64 * scale))
+        save_slot_button_gap = max(8, int(12 * scale))
+        save_slot_buttons = tuple(
+            pygame.Rect(
+                center_x - save_slot_button_width // 2,
+                int(height * 0.24)
+                + slot_index * (save_slot_button_height + save_slot_button_gap),
+                save_slot_button_width,
+                save_slot_button_height,
+            )
+            for slot_index in range(SAVE_SLOT_COUNT)
+        )
 
         start_button = pygame.Rect(
             0, int(height * 0.56), button_width, button_height
@@ -266,10 +295,12 @@ def Main():
                     pending_display_mode = display_mode
                     state = "settings"
                     settings_message = translations["settings_resolution_reverted"]
-                elif event.key == pygame.K_ESCAPE and state == "game":
+                elif event.key == pygame.K_ESCAPE and state == "mode_chooser":
+                    state = "save_slots"
+                elif event.key == pygame.K_ESCAPE and state == "save_slots":
                     state = "menu"
                 elif state == "menu" and event.key in (pygame.K_RETURN, pygame.K_SPACE):
-                    state = "game"
+                    state = "save_slots"
             elif event.type == pygame.MOUSEWHEEL and dropdown_rect is not None:
                 if dropdown_rect.collidepoint(pygame.mouse.get_pos()):
                     dropdown_scroll = max(
@@ -299,7 +330,7 @@ def Main():
             elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                 if state == "menu":
                     if start_button.collidepoint(event.pos):
-                        state = "game"
+                        state = "save_slots"
                     elif settings_button.collidepoint(event.pos):
                         state = "settings"
                         pending_resolution_index = resolution_index
@@ -486,6 +517,33 @@ def Main():
                         pending_music_volume = music_volume
                         Set_Music_Volume(music_volume)
                         volume_slider_dragging = False
+                elif state == "save_slots":
+                    for slot_index, slot_button in enumerate(save_slot_buttons):
+                        if slot_button.collidepoint(event.pos):
+                            slot_number = slot_index + 1
+                            try:
+                                save_slot = Load_Save_Slot(slot_number)
+                                if save_slot is None:
+                                    save_slot = Create_Save_Slot(slot_number)
+                            except (OSError, ValueError) as error:
+                                print(
+                                    "Could not load save slot {}: {}".format(
+                                        slot_number, error
+                                    ),
+                                    file=sys.stderr,
+                                )
+                                save_slots_error = translations[
+                                    "game_save_slot_error"
+                                ]
+                            else:
+                                save_slots[slot_index] = save_slot
+                                selected_save_slot = slot_number
+                                save_slots_error = None
+                                state = "mode_chooser"
+                            break
+
+        if state != previous_state:
+            transition_started_at = pygame.time.get_ticks()
 
         # Redraw the active screen from its current state.
         mouse_position = pygame.mouse.get_pos()
@@ -694,7 +752,62 @@ def Main():
                         ),
                     )
 
-        else:
+        elif state == "save_slots":
+            title = Render_Pixel_Text(
+                title_font, translations["game_save_slots_title"], WHITE
+            )
+            screen.blit(title, title.get_rect(center=(center_x, int(height * 0.14))))
+            for slot_index, slot_button in enumerate(save_slot_buttons):
+                slot_number = slot_index + 1
+                save_slot = save_slots[slot_index]
+                if save_slot is None:
+                    slot_label = translations["game_slot_empty"].format(
+                        slot=slot_number
+                    )
+                else:
+                    saved_date = save_slot["created_at"].replace("T", " ")[:16]
+                    slot_label = translations["game_slot_saved"].format(
+                        slot=slot_number,
+                        date=saved_date,
+                    )
+                Draw_Button(
+                    screen,
+                    slot_button,
+                    slot_label,
+                    small_font,
+                    mouse_position,
+                )
+            if save_slots_error is not None:
+                error_label = Render_Pixel_Text(
+                    small_font, save_slots_error, RED
+                )
+                screen.blit(
+                    error_label,
+                    error_label.get_rect(center=(center_x, int(height * 0.88))),
+                )
+            back_hint = Render_Pixel_Text(
+                small_font, translations["game_slots_back_hint"], WHITE
+            )
+            screen.blit(back_hint, (24, 20))
+
+        elif state == "mode_chooser":
+            title = Render_Pixel_Text(
+                title_font, translations["game_mode_chooser_title"], WHITE
+            )
+            screen.blit(title, title.get_rect(center=(center_x, int(height * 0.14))))
+            selected_slot_label = Render_Pixel_Text(
+                small_font,
+                translations["game_mode_chooser_slot"].format(
+                    slot=selected_save_slot
+                ),
+                MUTED,
+            )
+            screen.blit(
+                selected_slot_label,
+                selected_slot_label.get_rect(
+                    center=(center_x, int(height * 0.23))
+                ),
+            )
             # Show non-interactive mode cards until their gameplay is implemented.
             card_gap = max(16, int(28 * scale))
             card_width = min(
@@ -748,9 +861,28 @@ def Main():
                 ),
             )
             hint = Render_Pixel_Text(
-                small_font, translations["game_back_hint"], WHITE
+                small_font, translations["game_modes_back_hint"], WHITE
             )
             screen.blit(hint, (24, 20))
+
+        if transition_started_at is not None:
+            elapsed = pygame.time.get_ticks() - transition_started_at
+            progress = min(1.0, elapsed / MENU_TRANSITION_DURATION_MS)
+            sweep_x = int(width * progress)
+            covered_width = width - sweep_x
+            if covered_width > 0:
+                pygame.draw.rect(
+                    screen,
+                    PANEL,
+                    pygame.Rect(sweep_x, 0, covered_width, height),
+                )
+                pygame.draw.rect(
+                    screen,
+                    ACCENT,
+                    pygame.Rect(sweep_x, 0, min(4, covered_width), height),
+                )
+            if progress >= 1.0:
+                transition_started_at = None
 
         pygame.display.flip()
 

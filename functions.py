@@ -1,4 +1,5 @@
 import json
+import os
 import sys
 from pathlib import Path
 import pygame
@@ -38,13 +39,22 @@ YELLOW = (255, 255, 0)
 # Path definitions for the root directory, localisation files, used in both main.py and functions.py but kept separate to minimize possible import issues
 ROOT_DIR = Path(__file__).resolve().parent
 LOCALISATION_DIR = ROOT_DIR / "localisation"
-SETTINGS_FILE = ROOT_DIR / "settings.json"
+if getattr(sys, "frozen", False):
+    settings_directory = Path(
+        os.environ.get(
+            "LOCALAPPDATA", Path.home() / "AppData" / "Local"
+        )
+    ) / "2D_Racing"
+    SETTINGS_FILE = settings_directory / "settings.json"
+else:
+    SETTINGS_FILE = ROOT_DIR / "settings.json"
 DEFAULT_LANGUAGE = "english"
 DEFAULT_DISPLAY_MODE = "windowed"
 LOCALISATION_FILES = ("main_menu.yml", "settings.yml", "game.yml")
 
 
 def render_pixel_text(font, text, color):
+    """Render text with a pixelated effect while keeping its original size."""
     rendered = font.render(text, False, color)
     pixel_size = (
         max(1, rendered.get_width() // 2),
@@ -54,6 +64,7 @@ def render_pixel_text(font, text, color):
     return pygame.transform.scale(reduced, rendered.get_size())
 
 def draw_button(surface, rect, text, font, mouse_position, selected=False):
+    """Draw a menu button, highlighting it on hover or selection."""
     color = BUTTON_HOVER if rect.collidepoint(mouse_position) else BUTTON
     pygame.draw.rect(surface, color, rect, border_radius=10)
     border_color = ACCENT if selected else (63, 83, 108)
@@ -62,6 +73,7 @@ def draw_button(surface, rect, text, font, mouse_position, selected=False):
     surface.blit(label, label.get_rect(center=rect.center))
 
 def available_languages():
+    """Return languages that have all required localisation files."""
     languages = sorted(
         folder.name
         for folder in LOCALISATION_DIR.iterdir()
@@ -78,6 +90,7 @@ def available_languages():
 
 
 def load_localisation(language):
+    """Load and validate all translations for the requested language."""
     language_dir = LOCALISATION_DIR / language
     language_key = "l_{}".format(language)
     translations = {}
@@ -99,6 +112,7 @@ def load_localisation(language):
     return translations
 
 def load_preferences(languages):
+    """Load saved display and language preferences, or return defaults."""
     if not SETTINGS_FILE.exists():
         return 0, DEFAULT_LANGUAGE, DEFAULT_DISPLAY_MODE
 
@@ -119,6 +133,8 @@ def load_preferences(languages):
     return RESOLUTIONS.index(resolution), language, display_mode
 
 def save_preferences(resolution_index, language, display_mode):
+    """Persist the selected resolution, language, and display mode."""
+    SETTINGS_FILE.parent.mkdir(parents=True, exist_ok=True)
     with SETTINGS_FILE.open("w", encoding="utf-8") as file:
         json.dump(
             {
@@ -132,6 +148,7 @@ def save_preferences(resolution_index, language, display_mode):
         file.write("\n")
 
 def fit_resolution_to_desktop(resolution):
+    """Limit a requested window size so it fits within the desktop."""
     desktop_sizes = pygame.display.get_desktop_sizes()
     if not desktop_sizes:
         return resolution
@@ -143,6 +160,7 @@ def fit_resolution_to_desktop(resolution):
     )
 
 def get_display_mode_settings(display_mode, resolution):
+    """Return the Pygame display size and flags for a selected mode."""
     if display_mode == "fullscreen":
         return resolution, pygame.FULLSCREEN
     if display_mode == "borderless":

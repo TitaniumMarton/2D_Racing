@@ -1,4 +1,5 @@
 import json
+import math
 import sys
 from pathlib import Path
 import pygame
@@ -47,6 +48,7 @@ LOCALISATION_FILES = ("main_menu.yml", "settings.yml", "game.yml")
 
 
 def main():
+    """Initialize Pygame and run the menu, settings, and game loop."""
     pygame.init()
 
     #loading preferences and setting initial values
@@ -408,7 +410,8 @@ def main():
             title = render_pixel_text(
                 title_font, translations["main_menu_title"], WHITE
             )
-            screen.blit(title, title.get_rect(center=(center_x, int(height * 0.30))))
+            title_y = int(height * 0.30 + math.sin(pygame.time.get_ticks() / 1500) * 8)
+            screen.blit(title, title.get_rect(center=(center_x, title_y)))
             subtitle = render_pixel_text(
                 small_font, translations["main_menu_subtitle"], MUTED
             )

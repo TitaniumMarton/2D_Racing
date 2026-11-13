@@ -873,12 +873,12 @@ def Main():
             if covered_width > 0:
                 pygame.draw.rect(
                     screen,
-                    PANEL,
+                    BLACK,
                     pygame.Rect(sweep_x, 0, covered_width, height),
                 )
                 pygame.draw.rect(
                     screen,
-                    ACCENT,
+                    BLACK,
                     pygame.Rect(sweep_x, 0, min(4, covered_width), height),
                 )
             if progress >= 1.0:

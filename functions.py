@@ -8,6 +8,7 @@ import yaml
 
 # These are the screen sizes and display modes offered in the settings menu.
 RESOLUTIONS = (
+    (1920, 1200),
     (1920, 1080),
     (3840, 2160),
     (2560, 1440),

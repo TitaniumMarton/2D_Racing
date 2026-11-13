@@ -48,24 +48,12 @@ LOCALISATION_FILES = ("main_menu.yml", "settings.yml", "game.yml")
 
 def main():
     pygame.init()
+
+    #loading preferences and setting initial values
     languages = available_languages()
     resolution_index, language, display_mode = load_preferences(languages)
-    localisations = {
-        locale: load_localisation(locale) for locale in languages
-    }
-    if any("language_name" not in data for data in localisations.values()):
-        raise ValueError("Each localisation must define a language_name")
-    language_names = {
-        locale: data["language_name"]
-        for locale, data in localisations.items()
-    }
-    translations = localisations[language]
-    screen_size, screen_flags = get_display_mode_settings(
-        display_mode, RESOLUTIONS[resolution_index]
-    )
-    screen = pygame.display.set_mode(screen_size, screen_flags)
-    pygame.display.set_caption("2D Racing")
 
+    # grouped initialization of variables for the main loop
     clock = pygame.time.Clock()
     title_font = pygame.font.Font(None, 100)
     button_font = pygame.font.Font(None, 42)
@@ -79,6 +67,22 @@ def main():
     confirm_previous_resolution_index = resolution_index
     confirm_previous_display_mode = display_mode
     resolution_confirm_deadline = 0
+    localisations = {locale: load_localisation(locale) for locale in languages}
+
+    if any("language_name" not in data for data in localisations.values()):
+        raise ValueError("Each localisation must define a language_name")
+    
+    language_names = {
+        locale: data["language_name"]
+        for locale, data in localisations.items()
+    }
+    translations = localisations[language]
+    screen_size, screen_flags = get_display_mode_settings(
+        display_mode, RESOLUTIONS[resolution_index]
+    )
+    screen = pygame.display.set_mode(screen_size, screen_flags)
+    pygame.display.set_caption("2D Racing")
+
     display_mode_labels = {
         mode: translations["display_mode_{}".format(mode)]
         for mode in DISPLAY_MODES
@@ -122,9 +126,10 @@ def main():
         selector_width = min(int(width * 0.48), 520)
         selector_height = max(40, int(62 * scale))
         selector_x = center_x - selector_width // 2
+        
         resolution_selector = pygame.Rect(
-            selector_x, int(height * 0.29), selector_width, selector_height
-        )
+            selector_x, int(height * 0.29), selector_width, selector_height)
+        
         language_selector = pygame.Rect(
             selector_x, int(height * 0.60), selector_width, selector_height
         )

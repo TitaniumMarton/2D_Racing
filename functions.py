@@ -56,6 +56,7 @@ else:
     USER_DATA_DIR = ROOT_DIR
 SETTINGS_FILE = USER_DATA_DIR / "settings.json"
 SAVE_GAMES_DIR = USER_DATA_DIR / "savegames"
+SAVE_GAMES_FILE = SAVE_GAMES_DIR / "savegames.json"
 SAVE_SLOT_COUNT = 5
 DEFAULT_LANGUAGE = "english"
 DEFAULT_DISPLAY_MODE = "windowed"
@@ -183,24 +184,17 @@ def Save_Preferences(
 
 
 def Get_Save_Slot_Path(slot_number):
-    """Return the data-file path for one of the five valid save slots."""
+    """Return the shared data-file path after validating a save slot number."""
     if (
         isinstance(slot_number, bool)
         or not isinstance(slot_number, int)
         or not 1 <= slot_number <= SAVE_SLOT_COUNT
     ):
         raise ValueError("The save slot number must be between 1 and 5")
-    return SAVE_GAMES_DIR / "slot_{}.json".format(slot_number)
+    return SAVE_GAMES_FILE
 
 
-def Load_Save_Slot(slot_number):
-    """Load and validate one save slot, returning None when it is empty."""
-    save_path = Get_Save_Slot_Path(slot_number)
-    if not save_path.is_file():
-        return None
-
-    with save_path.open(encoding="utf-8") as file:
-        save_data = json.load(file)
+def _Validate_Save_Slot(save_data, slot_number):
     if (
         not isinstance(save_data, dict)
         or isinstance(save_data.get("version"), bool)
@@ -215,26 +209,77 @@ def Load_Save_Slot(slot_number):
     return save_data
 
 
+def _Write_Save_Slots(save_slots):
+    SAVE_GAMES_DIR.mkdir(parents=True, exist_ok=True)
+    with SAVE_GAMES_FILE.open("w", encoding="utf-8") as file:
+        json.dump({"version": 1, "slots": save_slots}, file, indent=2)
+        file.write("\n")
+
+
 def Load_Save_Slots():
-    """Load metadata for all five save slots, with None for each empty slot."""
-    return [
-        Load_Save_Slot(slot_number)
-        for slot_number in range(1, SAVE_SLOT_COUNT + 1)
-    ]
+    """Load all slots from one file, migrating older per-slot files if present."""
+    SAVE_GAMES_DIR.mkdir(parents=True, exist_ok=True)
+    if SAVE_GAMES_FILE.is_file():
+        with SAVE_GAMES_FILE.open(encoding="utf-8") as file:
+            save_data = json.load(file)
+        if (
+            not isinstance(save_data, dict)
+            or isinstance(save_data.get("version"), bool)
+            or not isinstance(save_data.get("version"), int)
+            or save_data.get("version") != 1
+            or not isinstance(save_data.get("slots"), list)
+            or len(save_data["slots"]) != SAVE_SLOT_COUNT
+        ):
+            raise ValueError("The save games file is invalid")
+        save_slots = [
+            None
+            if slot_data is None
+            else _Validate_Save_Slot(slot_data, slot_number)
+            for slot_number, slot_data in enumerate(save_data["slots"], start=1)
+        ]
+    else:
+        save_slots = [None] * SAVE_SLOT_COUNT
+
+    migrated_files = []
+    for slot_number in range(1, SAVE_SLOT_COUNT + 1):
+        legacy_path = SAVE_GAMES_DIR / "slot_{}.json".format(slot_number)
+        if not legacy_path.is_file() or save_slots[slot_number - 1] is not None:
+            continue
+        with legacy_path.open(encoding="utf-8") as file:
+            legacy_data = json.load(file)
+        save_slots[slot_number - 1] = _Validate_Save_Slot(
+            legacy_data, slot_number
+        )
+        migrated_files.append(legacy_path)
+
+    if not SAVE_GAMES_FILE.is_file() or migrated_files:
+        _Write_Save_Slots(save_slots)
+        for legacy_path in migrated_files:
+            legacy_path.unlink()
+    return save_slots
+
+
+def Load_Save_Slot(slot_number):
+    """Load and validate one save slot, returning None when it is empty."""
+    Get_Save_Slot_Path(slot_number)
+    return Load_Save_Slots()[slot_number - 1]
 
 
 def Create_Save_Slot(slot_number):
     """Create a new save-slot record without overwriting an existing slot."""
-    save_path = Get_Save_Slot_Path(slot_number)
-    SAVE_GAMES_DIR.mkdir(parents=True, exist_ok=True)
+    Get_Save_Slot_Path(slot_number)
+    save_slots = Load_Save_Slots()
+    if save_slots[slot_number - 1] is not None:
+        raise FileExistsError(
+            "Save slot {} already exists".format(slot_number)
+        )
     save_data = {
         "version": 1,
         "slot": slot_number,
         "created_at": datetime.now().astimezone().isoformat(timespec="seconds"),
     }
-    with save_path.open("x", encoding="utf-8") as file:
-        json.dump(save_data, file, indent=2)
-        file.write("\n")
+    save_slots[slot_number - 1] = save_data
+    _Write_Save_Slots(save_slots)
     return save_data
 
 

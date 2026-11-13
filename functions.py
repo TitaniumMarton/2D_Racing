@@ -87,24 +87,29 @@ def Render_Pixel_Text(font, text, color):
 
 def Load_Character_Images():
     """Load the available team characters and return their filename keys."""
-    if not CHARACTER_DIR.is_dir():
-        raise FileNotFoundError(
-            "The character image directory is missing: {!s}".format(CHARACTER_DIR)
+    for character_directory in (CHARACTER_DIR, ROOT_DIR / "gfx"):
+        if not character_directory.is_dir():
+            continue
+        character_files = sorted(
+            (
+                path
+                for path in character_directory.glob("character_*.png")
+                if path.stem != "character_outline"
+            ),
+            key=lambda path: path.name.lower(),
         )
-    character_files = sorted(
-        CHARACTER_DIR.glob("character_*.png"),
-        key=lambda path: path.name.lower(),
-    )
-    if not character_files:
-        raise FileNotFoundError(
-            "No character images were found in {!s}".format(CHARACTER_DIR)
+        if character_files:
+            return tuple(
+                (
+                    character_file.stem[len("character_"):],
+                    pygame.image.load(str(character_file)).convert_alpha(),
+                )
+                for character_file in character_files
+            )
+    raise FileNotFoundError(
+        "No character images were found in {!s} or {!s}".format(
+            CHARACTER_DIR, ROOT_DIR / "gfx"
         )
-    return tuple(
-        (
-            character_file.stem[len("character_"):],
-            pygame.image.load(str(character_file)).convert_alpha(),
-        )
-        for character_file in character_files
     )
 
 

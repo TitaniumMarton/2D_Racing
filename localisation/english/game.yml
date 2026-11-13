@@ -1,2 +1,5 @@
 l_english:
   game_back_hint: "ESC - BACK TO MENU"
+  game_mode_carrier: "Carrier mode"
+  game_mode_sandbox: "Sandbox mode"
+  game_under_development: "under development"

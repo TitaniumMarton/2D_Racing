@@ -1,2 +1,5 @@
 ﻿l_hungarian:
   game_back_hint: "ESC - VISSZA A MENÜBE"
+  game_mode_carrier: "Karrier mód"
+  game_mode_sandbox: "Szabad játék"
+  game_under_development: "Fejlesztés alatt"

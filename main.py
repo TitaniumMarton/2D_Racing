@@ -18,6 +18,7 @@ from functions import (
 )
 
 RESOLUTIONS = (
+    (1920, 1200),
     (1920, 1080),
     (3840, 2160),
     (2560, 1440),
@@ -101,8 +102,8 @@ def Main():
         pygame.mixer.init()
     pygame.mixer.music.load(str(MAIN_THEME_FILE))
     Set_Music_Volume(music_volume)
+    # Keep the theme looping through the main menu, settings, and mode selection.
     pygame.mixer.music.play(-1)
-    active_music_context = "menu"
 
     # Prepare the translated labels and dropdown state used by the settings screen.
     display_mode_labels = {
@@ -150,7 +151,7 @@ def Main():
         # Recalculate control positions so the interface scales with the window.
         width, height = screen.get_size()
         center_x = width // 2
-        scale = min(width / 1920, height / 1080)
+        scale = min(width / 1920, height / 1200)
         button_width = min(int(width * 0.42), 520)
         button_height = max(52, int(72 * scale))
         selector_width = min(int(width * 0.48), 520)
@@ -486,15 +487,6 @@ def Main():
                         Set_Music_Volume(music_volume)
                         volume_slider_dragging = False
 
-        # The menu theme plays in menus/settings and stops while gameplay is active.
-        music_context = "game" if state == "game" else "menu"
-        if music_context != active_music_context:
-            if music_context == "game":
-                pygame.mixer.music.stop()
-            else:
-                pygame.mixer.music.play(-1)
-            active_music_context = music_context
-
         # Redraw the active screen from its current state.
         mouse_position = pygame.mouse.get_pos()
         screen.fill(BACKGROUND)
@@ -703,15 +695,58 @@ def Main():
                     )
 
         else:
-            # Draw the current gameplay placeholder and its return-to-menu hint.
-            square_size = max(24, int(100 * scale))
-            squares = (
-                (int(width * 350 / 1920), int(height * 250 / 1080), (0, 255, 0)),
-                (int(width * 500 / 1920), int(height * 350 / 1080), (255, 255, 0)),
-                (int(width * 650 / 1920), int(height * 450 / 1080), (255, 0, 0)),
+            # Show non-interactive mode cards until their gameplay is implemented.
+            card_gap = max(16, int(28 * scale))
+            card_width = min(
+                int(width * 0.38),
+                max(180, int(480 * scale)),
             )
-            for x, y, color in squares:
-                pygame.draw.rect(screen, color, (x, y, square_size, square_size))
+            card_height = max(120, int(220 * scale))
+            card_left = center_x - (card_width * 2 + card_gap) // 2
+            card_top = int(height * 0.34)
+            card_rectangles = (
+                pygame.Rect(card_left, card_top, card_width, card_height),
+                pygame.Rect(
+                    card_left + card_width + card_gap,
+                    card_top,
+                    card_width,
+                    card_height,
+                ),
+            )
+            card_font = pygame.font.Font(
+                None, max(14, min(40, card_width // 9))
+            )
+            for card_rect, label_key in zip(
+                card_rectangles,
+                ("game_mode_carrier", "game_mode_sandbox"),
+            ):
+                pygame.draw.rect(screen, PANEL, card_rect, border_radius=14)
+                pygame.draw.rect(
+                    screen,
+                    (63, 83, 108),
+                    card_rect,
+                    width=2,
+                    border_radius=14,
+                )
+                card_label = Render_Pixel_Text(
+                    card_font, translations[label_key], WHITE
+                )
+                screen.blit(
+                    card_label,
+                    card_label.get_rect(center=card_rect.center),
+                )
+            development_label = Render_Pixel_Text(
+                small_font, translations["game_under_development"], MUTED
+            )
+            screen.blit(
+                development_label,
+                development_label.get_rect(
+                    center=(
+                        center_x,
+                        card_rectangles[0].bottom + max(32, int(64 * scale)),
+                    )
+                ),
+            )
             hint = Render_Pixel_Text(
                 small_font, translations["game_back_hint"], WHITE
             )

@@ -7,14 +7,14 @@ import yaml
 
 from functions import (
     MAIN_THEME_FILE,
-    available_languages,
-    draw_button,
-    get_display_mode_settings,
-    load_localisation,
-    load_preferences,
-    render_pixel_text,
-    save_preferences,
-    set_music_volume,
+    Available_Languages,
+    Draw_Button,
+    Get_Display_Mode_Settings,
+    Load_Localisation,
+    Load_Preferences,
+    Render_Pixel_Text,
+    Save_Preferences,
+    Set_Music_Volume,
 )
 
 RESOLUTIONS = (
@@ -34,7 +34,7 @@ RESOLUTIONS = (
 )
 DISPLAY_MODES = ("fullscreen", "borderless", "windowed")
 
-# Color definitions/used both in main.py and functions.py but kept separate to minimize possible import issues
+# Shared colors keep the screens and helper-drawn controls visually consistent.
 BACKGROUND = (12, 18, 30)
 PANEL = (22, 32, 49)
 BUTTON = (35, 51, 73)
@@ -48,7 +48,7 @@ BLUE = (0, 0, 255)
 GREEN = (0, 255, 0)
 YELLOW = (255, 255, 0)
 
-# Path definitions for the root directory, localisation files, used in both main.py and functions.py but kept separate to minimize possible import issues
+# Locate files relative to the source or PyInstaller bundle.
 ROOT_DIR = Path(__file__).resolve().parent
 LOCALISATION_DIR = ROOT_DIR / "localisation"
 SETTINGS_FILE = ROOT_DIR / "settings.json"
@@ -57,15 +57,15 @@ DEFAULT_DISPLAY_MODE = "windowed"
 LOCALISATION_FILES = ("main_menu.yml", "settings.yml", "game.yml")
 
 
-def main():
+def Main():
     """Initialize Pygame and run the menu, settings, and game loop."""
+    # Initialize Pygame and load saved display, language, and music settings.
     pygame.init()
 
-    #loading preferences and setting initial values
-    languages = available_languages()
-    resolution_index, language, display_mode, music_volume = load_preferences(languages)
+    languages = Available_Languages()
+    resolution_index, language, display_mode, music_volume = Load_Preferences(languages)
 
-    # grouped initialization of variables for the main loop
+    # Prepare frame timing, fonts, current screen state, and pending settings.
     clock = pygame.time.Clock()
     title_font = pygame.font.Font(None, 100)
     button_font = pygame.font.Font(None, 42)
@@ -81,17 +81,18 @@ def main():
     confirm_previous_resolution_index = resolution_index
     confirm_previous_display_mode = display_mode
     resolution_confirm_deadline = 0
-    localisations = {locale: load_localisation(locale) for locale in languages}
+    localisations = {locale: Load_Localisation(locale) for locale in languages}
 
     if any("language_name" not in data for data in localisations.values()):
         raise ValueError("Each localisation must define a language_name")
     
+    # Build language labels before creating the first display surface.
     language_names = {
         locale: data["language_name"]
         for locale, data in localisations.items()
     }
     translations = localisations[language]
-    screen_size, screen_flags = get_display_mode_settings(
+    screen_size, screen_flags = Get_Display_Mode_Settings(
         display_mode, RESOLUTIONS[resolution_index]
     )
     screen = pygame.display.set_mode(screen_size, screen_flags)
@@ -99,10 +100,11 @@ def main():
     if pygame.mixer.get_init() is None:
         pygame.mixer.init()
     pygame.mixer.music.load(str(MAIN_THEME_FILE))
-    set_music_volume(music_volume)
+    Set_Music_Volume(music_volume)
     pygame.mixer.music.play(-1)
     active_music_context = "menu"
 
+    # Prepare the translated labels and dropdown state used by the settings screen.
     display_mode_labels = {
         mode: translations["display_mode_{}".format(mode)]
         for mode in DISPLAY_MODES
@@ -112,12 +114,13 @@ def main():
     settings_message = None
 
     while running:
+        # Accept the pending resolution when its confirmation timer expires.
         if (
             state == "confirm_resolution"
             and pygame.time.get_ticks() >= resolution_confirm_deadline
         ):
             try:
-                save_preferences(
+                Save_Preferences(
                     pending_resolution_index,
                     language,
                     pending_display_mode,
@@ -125,7 +128,7 @@ def main():
                 )
             except OSError as error:
                 print("Could not save settings: {}".format(error), file=sys.stderr)
-                screen_size, screen_flags = get_display_mode_settings(
+                screen_size, screen_flags = Get_Display_Mode_Settings(
                     confirm_previous_display_mode,
                     RESOLUTIONS[confirm_previous_resolution_index],
                 )
@@ -135,7 +138,7 @@ def main():
                 pending_resolution_index = resolution_index
                 pending_display_mode = display_mode
                 pending_music_volume = music_volume
-                set_music_volume(music_volume)
+                Set_Music_Volume(music_volume)
                 settings_message = translations["settings_save_failed"]
             else:
                 resolution_index = pending_resolution_index
@@ -144,6 +147,7 @@ def main():
                 settings_message = translations["settings_applied"]
             state = "settings"
 
+        # Recalculate control positions so the interface scales with the window.
         width, height = screen.get_size()
         center_x = width // 2
         scale = min(width / 1920, height / 1080)
@@ -244,12 +248,13 @@ def main():
             else None
         )
 
+        # Handle navigation, dropdowns, display settings, and volume adjustments.
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
             elif event.type == pygame.KEYDOWN:
                 if state == "confirm_resolution" and event.key == pygame.K_RETURN:
-                    screen_size, screen_flags = get_display_mode_settings(
+                    screen_size, screen_flags = Get_Display_Mode_Settings(
                         confirm_previous_display_mode,
                         RESOLUTIONS[confirm_previous_resolution_index],
                     )
@@ -288,7 +293,7 @@ def main():
                         / music_volume_track.width,
                     ),
                 )
-                set_music_volume(pending_music_volume)
+                Set_Music_Volume(pending_music_volume)
                 settings_message = None
             elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                 if state == "menu":
@@ -316,7 +321,7 @@ def main():
                                 / music_volume_track.width,
                             ),
                         )
-                        set_music_volume(pending_music_volume)
+                        Set_Music_Volume(pending_music_volume)
                         settings_message = None
                     elif dropdown_rect is not None and dropdown_rect.collidepoint(event.pos):
                         option_index = dropdown_scroll + (
@@ -360,7 +365,7 @@ def main():
                         mode_changed = pending_display_mode != display_mode
                         if resolution_changed or mode_changed:
                             try:
-                                save_preferences(
+                                Save_Preferences(
                                     resolution_index,
                                     pending_language,
                                     display_mode,
@@ -383,7 +388,7 @@ def main():
                                 }
                                 pending_language = language
                                 screen_size, screen_flags = (
-                                    get_display_mode_settings(
+                                    Get_Display_Mode_Settings(
                                         pending_display_mode,
                                         RESOLUTIONS[pending_resolution_index],
                                     )
@@ -417,7 +422,7 @@ def main():
                                         settings_message = None
                                     else:
                                         try:
-                                            save_preferences(
+                                            Save_Preferences(
                                                 resolution_index,
                                                 language,
                                                 pending_display_mode,
@@ -431,7 +436,7 @@ def main():
                                                 file=sys.stderr,
                                             )
                                             old_size, old_flags = (
-                                                get_display_mode_settings(
+                                                Get_Display_Mode_Settings(
                                                     display_mode,
                                                     RESOLUTIONS[resolution_index],
                                                 )
@@ -451,7 +456,7 @@ def main():
                                             ]
                         else:
                             try:
-                                save_preferences(
+                                Save_Preferences(
                                     resolution_index,
                                     pending_language,
                                     display_mode,
@@ -478,9 +483,10 @@ def main():
                     elif back_button.collidepoint(event.pos):
                         state = "menu"
                         pending_music_volume = music_volume
-                        set_music_volume(music_volume)
+                        Set_Music_Volume(music_volume)
                         volume_slider_dragging = False
 
+        # The menu theme plays in menus/settings and stops while gameplay is active.
         music_context = "game" if state == "game" else "menu"
         if music_context != active_music_context:
             if music_context == "game":
@@ -489,34 +495,36 @@ def main():
                 pygame.mixer.music.play(-1)
             active_music_context = music_context
 
+        # Redraw the active screen from its current state.
         mouse_position = pygame.mouse.get_pos()
         screen.fill(BACKGROUND)
 
         if state == "menu":
-            title = render_pixel_text(
+            # Show the animated title and the three main navigation buttons.
+            title = Render_Pixel_Text(
                 title_font, translations["main_menu_title"], WHITE
             )
             title_y = int(height * 0.30 + math.sin(pygame.time.get_ticks() / 1500) * 8)
             screen.blit(title, title.get_rect(center=(center_x, title_y)))
-            subtitle = render_pixel_text(
+            subtitle = Render_Pixel_Text(
                 small_font, translations["main_menu_subtitle"], MUTED
             )
             screen.blit(subtitle, subtitle.get_rect(center=(center_x, int(height * 0.39))))
-            draw_button(
+            Draw_Button(
                 screen,
                 start_button,
                 translations["main_menu_start"],
                 button_font,
                 mouse_position,
             )
-            draw_button(
+            Draw_Button(
                 screen,
                 settings_button,
                 translations["main_menu_settings"],
                 button_font,
                 mouse_position,
             )
-            draw_button(
+            Draw_Button(
                 screen,
                 quit_button,
                 translations["main_menu_quit"],
@@ -525,14 +533,15 @@ def main():
             )
 
         elif state == "confirm_resolution":
-            title = render_pixel_text(
+            # Show the countdown and instructions for reverting a display change.
+            title = Render_Pixel_Text(
                 title_font, translations["settings_confirm_resolution"], WHITE
             )
             seconds_left = max(
                 0,
                 (resolution_confirm_deadline - pygame.time.get_ticks() + 999) // 1000,
             )
-            prompt = render_pixel_text(
+            prompt = Render_Pixel_Text(
                 small_font,
                 translations["settings_press_enter_revert"].format(
                     seconds=seconds_left
@@ -543,32 +552,33 @@ def main():
             screen.blit(prompt, prompt.get_rect(center=(center_x, int(height * 0.53))))
 
         elif state == "settings":
-            title = render_pixel_text(
+            # Draw translated display controls, the music slider, and feedback.
+            title = Render_Pixel_Text(
                 title_font, translations["settings_title"], WHITE
             )
             screen.blit(title, title.get_rect(center=(center_x, int(height * 0.14))))
-            resolution_label = render_pixel_text(
+            resolution_label = Render_Pixel_Text(
                 small_font, translations["settings_resolution"], MUTED
             )
             screen.blit(
                 resolution_label,
                 resolution_label.get_rect(center=(center_x, int(height * 0.25))),
             )
-            mode_label = render_pixel_text(
+            mode_label = Render_Pixel_Text(
                 small_font, translations["settings_display_mode"], MUTED
             )
             screen.blit(
                 mode_label,
                 mode_label.get_rect(center=(center_x, int(height * 0.41))),
             )
-            language_label = render_pixel_text(
+            language_label = Render_Pixel_Text(
                 small_font, translations["settings_language"], MUTED
             )
             screen.blit(
                 language_label,
                 language_label.get_rect(center=(center_x, int(height * 0.56))),
             )
-            music_volume_label = render_pixel_text(
+            music_volume_label = Render_Pixel_Text(
                 small_font,
                 translations["settings_music_volume"].format(
                     percent=int(round(pending_music_volume * 100))
@@ -579,14 +589,14 @@ def main():
                 music_volume_label,
                 music_volume_label.get_rect(center=(center_x, int(height * 0.68))),
             )
-            draw_button(
+            Draw_Button(
                 screen,
                 resolution_selector,
                 "{} x {}    v".format(*RESOLUTIONS[pending_resolution_index]),
                 button_font,
                 mouse_position,
             )
-            draw_button(
+            Draw_Button(
                 screen,
                 language_selector,
                 "{}    v".format(language_names[pending_language]),
@@ -594,7 +604,7 @@ def main():
                 mouse_position,
             )
             for mode, button in mode_buttons.items():
-                draw_button(
+                Draw_Button(
                     screen,
                     button,
                     display_mode_labels[mode],
@@ -635,14 +645,14 @@ def main():
                 ),
                 max(8, int(12 * scale)),
             )
-            draw_button(
+            Draw_Button(
                 screen,
                 back_button,
                 translations["settings_back"],
                 small_font,
                 mouse_position,
             )
-            draw_button(
+            Draw_Button(
                 screen,
                 apply_button,
                 translations["settings_apply"],
@@ -650,7 +660,7 @@ def main():
                 mouse_position,
             )
             if settings_message is not None:
-                message = render_pixel_text(
+                message = Render_Pixel_Text(
                     small_font,
                     settings_message,
                     RED
@@ -682,7 +692,7 @@ def main():
                         option_label = dropdown_options[option_index]
                     else:
                         option_label = dropdown_options[option_index]
-                    option_text = render_pixel_text(
+                    option_text = Render_Pixel_Text(
                         small_font, option_label, WHITE
                     )
                     screen.blit(
@@ -693,6 +703,7 @@ def main():
                     )
 
         else:
+            # Draw the current gameplay placeholder and its return-to-menu hint.
             square_size = max(24, int(100 * scale))
             squares = (
                 (int(width * 350 / 1920), int(height * 250 / 1080), (0, 255, 0)),
@@ -701,20 +712,21 @@ def main():
             )
             for x, y, color in squares:
                 pygame.draw.rect(screen, color, (x, y, square_size, square_size))
-            hint = render_pixel_text(
+            hint = Render_Pixel_Text(
                 small_font, translations["game_back_hint"], WHITE
             )
             screen.blit(hint, (24, 20))
 
         pygame.display.flip()
 
-        # --- Frame Rate Control ---
+        # Limit the loop to 60 frames per second.
         clock.tick(60)
 
-    # Quit Pygame and exit system
+    # Release Pygame resources after the window closes.
     pygame.quit()
     sys.exit()
 
 
+# Start the game only when this file is run as the program entry point.
 if __name__ == "__main__":
-    main()
+    Main()

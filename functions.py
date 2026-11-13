@@ -6,6 +6,7 @@ from pathlib import Path
 import pygame
 import yaml
 
+# These are the screen sizes and display modes offered in the settings menu.
 RESOLUTIONS = (
     (1920, 1080),
     (3840, 2160),
@@ -23,7 +24,7 @@ RESOLUTIONS = (
 )
 DISPLAY_MODES = ("fullscreen", "borderless", "windowed")
 
-# Color definitions/used both in main.py and functions.py but kept separate to minimize possible import issues
+# Shared colors keep the helper-drawn controls consistent with the main screen.
 BACKGROUND = (12, 18, 30)
 PANEL = (22, 32, 49)
 BUTTON = (35, 51, 73)
@@ -37,11 +38,12 @@ BLUE = (0, 0, 255)
 GREEN = (0, 255, 0)
 YELLOW = (255, 255, 0)
 
-# Path definitions for the root directory, localisation files, used in both main.py and functions.py but kept separate to minimize possible import issues
+# Resolve bundled assets separately from the writable user preferences file.
 ROOT_DIR = Path(__file__).resolve().parent
 LOCALISATION_DIR = ROOT_DIR / "localisation"
 MUSIC_DIR = ROOT_DIR / "music"
 MAIN_THEME_FILE = MUSIC_DIR / "main_theme.mp3"
+# Keep settings outside PyInstaller's temporary bundle so user changes persist.
 if getattr(sys, "frozen", False):
     settings_directory = Path(
         os.environ.get(
@@ -53,13 +55,14 @@ else:
     SETTINGS_FILE = ROOT_DIR / "settings.json"
 DEFAULT_LANGUAGE = "english"
 DEFAULT_DISPLAY_MODE = "windowed"
+# Start with quiet music; the settings slider can raise it up to full volume.
 BASE_MUSIC_VOLUME = 0.2
 DEFAULT_MUSIC_VOLUME = BASE_MUSIC_VOLUME
 LOCALISATION_FILES = ("main_menu.yml", "settings.yml", "game.yml")
 
 
-def render_pixel_text(font, text, color):
-    """Render text with a pixelated effect while keeping its original size."""
+def Render_Pixel_Text(font, text, color):
+    """Render readable text with a pixelated effect at its original dimensions."""
     rendered = font.render(text, False, color)
     pixel_size = (
         max(1, rendered.get_width() // 2),
@@ -68,17 +71,17 @@ def render_pixel_text(font, text, color):
     reduced = pygame.transform.scale(rendered, pixel_size)
     return pygame.transform.scale(reduced, rendered.get_size())
 
-def draw_button(surface, rect, text, font, mouse_position, selected=False):
-    """Draw a menu button, highlighting it on hover or selection."""
+def Draw_Button(surface, rect, text, font, mouse_position, selected=False):
+    """Draw a button with hover feedback, a selection border, and centered text."""
     color = BUTTON_HOVER if rect.collidepoint(mouse_position) else BUTTON
     pygame.draw.rect(surface, color, rect, border_radius=10)
     border_color = ACCENT if selected else (63, 83, 108)
     pygame.draw.rect(surface, border_color, rect, width=2, border_radius=10)
-    label = render_pixel_text(font, text, WHITE)
+    label = Render_Pixel_Text(font, text, WHITE)
     surface.blit(label, label.get_rect(center=rect.center))
 
-def available_languages():
-    """Return languages that have all required localisation files."""
+def Available_Languages():
+    """List languages with every required translation file and require English."""
     languages = sorted(
         folder.name
         for folder in LOCALISATION_DIR.iterdir()
@@ -94,8 +97,8 @@ def available_languages():
     return languages
 
 
-def load_localisation(language):
-    """Load and validate all translations for the requested language."""
+def Load_Localisation(language):
+    """Load the selected language's YAML files and validate their translation values."""
     language_dir = LOCALISATION_DIR / language
     language_key = "l_{}".format(language)
     translations = {}
@@ -116,8 +119,8 @@ def load_localisation(language):
             translations[key] = value
     return translations
 
-def _validate_music_volume(volume):
-    """Return a normalized music volume or reject an invalid preference."""
+def Validate_Music_Volume(volume):
+    """Validate a 0-to-1 music level and return it as a float."""
     if (
         isinstance(volume, bool)
         or not isinstance(volume, (int, float))
@@ -128,8 +131,8 @@ def _validate_music_volume(volume):
     return float(volume)
 
 
-def load_preferences(languages):
-    """Load saved display, language, and audio preferences, or return defaults."""
+def Load_Preferences(languages):
+    """Load display, language, and volume preferences, using defaults when absent."""
     if not SETTINGS_FILE.exists():
         return 0, DEFAULT_LANGUAGE, DEFAULT_DISPLAY_MODE, DEFAULT_MUSIC_VOLUME
 
@@ -141,7 +144,7 @@ def load_preferences(languages):
     resolution = tuple(preferences.get("resolution", RESOLUTIONS[0]))
     language = preferences.get("language", DEFAULT_LANGUAGE)
     display_mode = preferences.get("display_mode", DEFAULT_DISPLAY_MODE)
-    music_volume = _validate_music_volume(
+    music_volume = Validate_Music_Volume(
         preferences.get("music_volume", DEFAULT_MUSIC_VOLUME)
     )
     if resolution not in RESOLUTIONS:
@@ -152,14 +155,14 @@ def load_preferences(languages):
         raise ValueError("The saved display mode is not available")
     return RESOLUTIONS.index(resolution), language, display_mode, music_volume
 
-def save_preferences(
+def Save_Preferences(
     resolution_index,
     language,
     display_mode,
     music_volume=DEFAULT_MUSIC_VOLUME,
 ):
-    """Persist the selected resolution, language, display mode, and volume."""
-    music_volume = _validate_music_volume(music_volume)
+    """Write the selected resolution, language, display mode, and volume to JSON."""
+    music_volume = Validate_Music_Volume(music_volume)
     SETTINGS_FILE.parent.mkdir(parents=True, exist_ok=True)
     with SETTINGS_FILE.open("w", encoding="utf-8") as file:
         json.dump(
@@ -175,13 +178,13 @@ def save_preferences(
         file.write("\n")
 
 
-def set_music_volume(volume):
-    """Set the current music volume after validating its 0-to-1 range."""
-    pygame.mixer.music.set_volume(_validate_music_volume(volume))
+def Set_Music_Volume(volume):
+    """Apply a validated 0-to-1 level to the currently loaded music track."""
+    pygame.mixer.music.set_volume(Validate_Music_Volume(volume))
 
 
-def fit_resolution_to_desktop(resolution):
-    """Limit a requested window size so it fits within the desktop."""
+def Fit_Resolution_To_Desktop(resolution):
+    """Shrink a requested window resolution to fit within the desktop margins."""
     desktop_sizes = pygame.display.get_desktop_sizes()
     if not desktop_sizes:
         return resolution
@@ -192,8 +195,8 @@ def fit_resolution_to_desktop(resolution):
         min(resolution[1], max(1, desktop_height - 64)),
     )
 
-def get_display_mode_settings(display_mode, resolution):
-    """Return the Pygame display size and flags for a selected mode."""
+def Get_Display_Mode_Settings(display_mode, resolution):
+    """Choose the Pygame size and flags for fullscreen, borderless, or windowed mode."""
     if display_mode == "fullscreen":
         return resolution, pygame.FULLSCREEN
     if display_mode == "borderless":
@@ -202,5 +205,5 @@ def get_display_mode_settings(display_mode, resolution):
             raise RuntimeError("Could not determine the desktop size")
         return desktop_sizes[0], pygame.NOFRAME
     if display_mode == "windowed":
-        return fit_resolution_to_desktop(resolution), 0
+        return Fit_Resolution_To_Desktop(resolution), 0
     raise ValueError("Unsupported display mode: {!r}".format(display_mode))

@@ -6,11 +6,14 @@ import pygame
 import yaml
 
 from functions import (
+    DIFFICULTY_LEVELS,
     MAIN_THEME_FILE,
     Available_Languages,
     Create_Save_Slot,
     Draw_Button,
     Get_Display_Mode_Settings,
+    Get_Localised_Team_Name,
+    Load_Character_Images,
     Load_Localisation,
     Load_Preferences,
     Load_Save_Slot,
@@ -80,6 +83,10 @@ def Main():
     state = "menu"
     running = True
     selected_save_slot = None
+    selected_mode = None
+    selected_difficulty = None
+    selected_team_index = 0
+    team_confirmed = False
     save_slots = []
     save_slots_error = None
     transition_started_at = None
@@ -113,6 +120,9 @@ def Main():
     )
     screen = pygame.display.set_mode(screen_size, screen_flags)
     pygame.display.set_caption("2D Racing")
+    team_characters = Load_Character_Images()
+    team_image_cache = {}
+    chooser_title_fonts = {}
     if pygame.mixer.get_init() is None:
         pygame.mixer.init()
     pygame.mixer.music.load(str(MAIN_THEME_FILE))
@@ -168,6 +178,12 @@ def Main():
         width, height = screen.get_size()
         center_x = width // 2
         scale = min(width / 1920, height / 1200)
+        chooser_title_size = max(36, min(100, int(width * 0.055)))
+        if chooser_title_size not in chooser_title_fonts:
+            chooser_title_fonts[chooser_title_size] = pygame.font.Font(
+                None, chooser_title_size
+            )
+        chooser_title_font = chooser_title_fonts[chooser_title_size]
         button_width = min(int(width * 0.42), 520)
         button_height = max(52, int(72 * scale))
         selector_width = min(int(width * 0.48), 520)
@@ -206,6 +222,53 @@ def Main():
             )
             for index, mode in enumerate(DISPLAY_MODES)
         }
+        card_gap = max(16, int(28 * scale))
+        card_width = min(
+            int(width * 0.38),
+            max(180, int(480 * scale)),
+        )
+        card_height = max(120, int(220 * scale))
+        card_left = center_x - (card_width * 2 + card_gap) // 2
+        card_top = int(height * 0.34)
+        mode_cards = {
+            "carrier": pygame.Rect(card_left, card_top, card_width, card_height),
+            "sandbox": pygame.Rect(
+                card_left + card_width + card_gap,
+                card_top,
+                card_width,
+                card_height,
+            ),
+        }
+        difficulty_button_width = min(int(width * 0.68), 700)
+        difficulty_button_height = max(48, int(64 * scale))
+        difficulty_button_gap = max(8, int(12 * scale))
+        difficulty_buttons = {
+            difficulty: pygame.Rect(
+                center_x - difficulty_button_width // 2,
+                int(height * 0.30)
+                + index * (difficulty_button_height + difficulty_button_gap),
+                difficulty_button_width,
+                difficulty_button_height,
+            )
+            for index, difficulty in enumerate(DIFFICULTY_LEVELS)
+        }
+        team_arrow_size = max(56, int(72 * scale))
+        team_arrow_gap = max(16, int(28 * scale))
+        team_image_max_width = max(1, int(width * 0.30))
+        team_image_max_height = max(1, int(height * 0.38))
+        team_arrow_y = int(height * 0.50)
+        team_arrow_left = pygame.Rect(
+            center_x - team_image_max_width // 2 - team_arrow_gap - team_arrow_size,
+            team_arrow_y - team_arrow_size // 2,
+            team_arrow_size,
+            team_arrow_size,
+        )
+        team_arrow_right = pygame.Rect(
+            center_x + team_image_max_width // 2 + team_arrow_gap,
+            team_arrow_y - team_arrow_size // 2,
+            team_arrow_size,
+            team_arrow_size,
+        )
         row_height = max(32, int(40 * scale))
         footer_height = max(48, int(60 * scale))
         footer_margin = max(24, int(min(width, height) * 0.06))
@@ -297,6 +360,10 @@ def Main():
                     settings_message = translations["settings_resolution_reverted"]
                 elif event.key == pygame.K_ESCAPE and state == "mode_chooser":
                     state = "save_slots"
+                elif event.key == pygame.K_ESCAPE and state == "difficulty_chooser":
+                    state = "mode_chooser"
+                elif event.key == pygame.K_ESCAPE and state == "team_chooser":
+                    state = "difficulty_chooser"
                 elif event.key == pygame.K_ESCAPE and state == "save_slots":
                     state = "menu"
                 elif state == "menu" and event.key in (pygame.K_RETURN, pygame.K_SPACE):
@@ -541,6 +608,39 @@ def Main():
                                 save_slots_error = None
                                 state = "mode_chooser"
                             break
+                elif state == "mode_chooser":
+                    for mode, card_rect in mode_cards.items():
+                        if card_rect.collidepoint(event.pos):
+                            selected_mode = mode
+                            selected_difficulty = None
+                            team_confirmed = False
+                            state = "difficulty_chooser"
+                            break
+                elif state == "difficulty_chooser":
+                    for difficulty, difficulty_rect in difficulty_buttons.items():
+                        if difficulty_rect.collidepoint(event.pos):
+                            selected_difficulty = difficulty
+                            selected_team_index = 0
+                            team_confirmed = False
+                            state = "team_chooser"
+                            break
+                    if back_button.collidepoint(event.pos):
+                        state = "mode_chooser"
+                elif state == "team_chooser":
+                    if team_arrow_left.collidepoint(event.pos):
+                        selected_team_index = (
+                            selected_team_index - 1
+                        ) % len(team_characters)
+                        team_confirmed = False
+                    elif team_arrow_right.collidepoint(event.pos):
+                        selected_team_index = (
+                            selected_team_index + 1
+                        ) % len(team_characters)
+                        team_confirmed = False
+                    elif back_button.collidepoint(event.pos):
+                        state = "difficulty_chooser"
+                    elif apply_button.collidepoint(event.pos):
+                        team_confirmed = True
 
         if state != previous_state:
             transition_started_at = pygame.time.get_ticks()
@@ -792,7 +892,9 @@ def Main():
 
         elif state == "mode_chooser":
             title = Render_Pixel_Text(
-                title_font, translations["game_mode_chooser_title"], WHITE
+                chooser_title_font,
+                translations["game_mode_chooser_title"],
+                WHITE,
             )
             screen.blit(title, title.get_rect(center=(center_x, int(height * 0.14))))
             selected_slot_label = Render_Pixel_Text(
@@ -808,60 +910,199 @@ def Main():
                     center=(center_x, int(height * 0.23))
                 ),
             )
-            # Show non-interactive mode cards until their gameplay is implemented.
-            card_gap = max(16, int(28 * scale))
-            card_width = min(
-                int(width * 0.38),
-                max(180, int(480 * scale)),
-            )
-            card_height = max(120, int(220 * scale))
-            card_left = center_x - (card_width * 2 + card_gap) // 2
-            card_top = int(height * 0.34)
-            card_rectangles = (
-                pygame.Rect(card_left, card_top, card_width, card_height),
-                pygame.Rect(
-                    card_left + card_width + card_gap,
-                    card_top,
-                    card_width,
-                    card_height,
-                ),
-            )
             card_font = pygame.font.Font(
                 None, max(14, min(40, card_width // 9))
             )
-            for card_rect, label_key in zip(
-                card_rectangles,
-                ("game_mode_carrier", "game_mode_sandbox"),
+            for mode, label_key in (
+                ("carrier", "game_mode_carrier"),
+                ("sandbox", "game_mode_sandbox"),
             ):
-                pygame.draw.rect(screen, PANEL, card_rect, border_radius=14)
-                pygame.draw.rect(
+                Draw_Button(
                     screen,
-                    (63, 83, 108),
-                    card_rect,
-                    width=2,
-                    border_radius=14,
+                    mode_cards[mode],
+                    translations[label_key],
+                    card_font,
+                    mouse_position,
                 )
-                card_label = Render_Pixel_Text(
-                    card_font, translations[label_key], WHITE
-                )
-                screen.blit(
-                    card_label,
-                    card_label.get_rect(center=card_rect.center),
-                )
-            development_label = Render_Pixel_Text(
-                small_font, translations["game_under_development"], MUTED
-            )
-            screen.blit(
-                development_label,
-                development_label.get_rect(
-                    center=(
-                        center_x,
-                        card_rectangles[0].bottom + max(32, int(64 * scale)),
-                    )
-                ),
-            )
             hint = Render_Pixel_Text(
                 small_font, translations["game_modes_back_hint"], WHITE
+            )
+            screen.blit(hint, (24, 20))
+
+        elif state == "difficulty_chooser":
+            title = Render_Pixel_Text(
+                chooser_title_font, translations["game_difficulty_title"], WHITE
+            )
+            screen.blit(title, title.get_rect(center=(center_x, int(height * 0.13))))
+            mode_label = Render_Pixel_Text(
+                small_font,
+                translations["game_selected_mode"].format(
+                    mode=translations["game_mode_{}".format(selected_mode)]
+                ),
+                MUTED,
+            )
+            screen.blit(
+                mode_label,
+                mode_label.get_rect(center=(center_x, int(height * 0.22))),
+            )
+            difficulty_font = pygame.font.Font(
+                None, max(16, min(30, int(34 * scale)))
+            )
+            for difficulty, button in difficulty_buttons.items():
+                Draw_Button(
+                    screen,
+                    button,
+                    translations["game_difficulty_{}".format(difficulty)],
+                    difficulty_font,
+                    mouse_position,
+                    selected=difficulty == selected_difficulty,
+                )
+            Draw_Button(
+                screen,
+                back_button,
+                translations["game_back"],
+                small_font,
+                mouse_position,
+            )
+            hint = Render_Pixel_Text(
+                small_font, translations["game_difficulty_back_hint"], WHITE
+            )
+            screen.blit(hint, (24, 20))
+
+        elif state == "team_chooser":
+            title = Render_Pixel_Text(
+                chooser_title_font, translations["game_team_chooser_title"], WHITE
+            )
+            screen.blit(title, title.get_rect(center=(center_x, int(height * 0.13))))
+            mode_label = Render_Pixel_Text(
+                small_font,
+                translations["game_selected_mode"].format(
+                    mode=translations["game_mode_{}".format(selected_mode)]
+                ),
+                MUTED,
+            )
+            difficulty_label = Render_Pixel_Text(
+                small_font,
+                translations["game_selected_difficulty"].format(
+                    difficulty=translations[
+                        "game_difficulty_{}".format(selected_difficulty)
+                    ]
+                ),
+                MUTED,
+            )
+            screen.blit(
+                mode_label,
+                mode_label.get_rect(center=(center_x, int(height * 0.21))),
+            )
+            screen.blit(
+                difficulty_label,
+                difficulty_label.get_rect(center=(center_x, int(height * 0.26))),
+            )
+            team_key, team_image = team_characters[selected_team_index]
+            image_cache_key = (
+                team_key,
+                team_image_max_width,
+                team_image_max_height,
+            )
+            scaled_team_image = team_image_cache.get(image_cache_key)
+            if scaled_team_image is None:
+                image_width, image_height = team_image.get_size()
+                image_scale = min(
+                    team_image_max_width / image_width,
+                    team_image_max_height / image_height,
+                )
+                scaled_size = (
+                    max(1, int(image_width * image_scale)),
+                    max(1, int(image_height * image_scale)),
+                )
+                scaled_team_image = pygame.transform.smoothscale(
+                    team_image, scaled_size
+                )
+                team_image_cache[image_cache_key] = scaled_team_image
+            screen.blit(
+                scaled_team_image,
+                scaled_team_image.get_rect(
+                    center=(center_x, team_arrow_y)
+                ),
+            )
+            Draw_Button(
+                screen,
+                team_arrow_left,
+                "",
+                button_font,
+                mouse_position,
+            )
+            Draw_Button(
+                screen,
+                team_arrow_right,
+                "",
+                button_font,
+                mouse_position,
+            )
+            arrow_center_y = team_arrow_left.centery
+            pygame.draw.polygon(
+                screen,
+                WHITE,
+                (
+                    (team_arrow_left.centerx - 14, arrow_center_y),
+                    (team_arrow_left.centerx + 4, arrow_center_y - 14),
+                    (team_arrow_left.centerx + 4, arrow_center_y - 5),
+                    (team_arrow_left.centerx + 15, arrow_center_y - 5),
+                    (team_arrow_left.centerx + 15, arrow_center_y + 5),
+                    (team_arrow_left.centerx + 4, arrow_center_y + 5),
+                    (team_arrow_left.centerx + 4, arrow_center_y + 14),
+                ),
+            )
+            pygame.draw.polygon(
+                screen,
+                WHITE,
+                (
+                    (team_arrow_right.centerx + 14, arrow_center_y),
+                    (team_arrow_right.centerx - 4, arrow_center_y - 14),
+                    (team_arrow_right.centerx - 4, arrow_center_y - 5),
+                    (team_arrow_right.centerx - 15, arrow_center_y - 5),
+                    (team_arrow_right.centerx - 15, arrow_center_y + 5),
+                    (team_arrow_right.centerx - 4, arrow_center_y + 5),
+                    (team_arrow_right.centerx - 4, arrow_center_y + 14),
+                ),
+            )
+            team_label = Render_Pixel_Text(
+                button_font, Get_Localised_Team_Name(team_key, translations), WHITE
+            )
+            screen.blit(
+                team_label,
+                team_label.get_rect(center=(center_x, int(height * 0.76))),
+            )
+            Draw_Button(
+                screen,
+                back_button,
+                translations["game_back"],
+                small_font,
+                mouse_position,
+            )
+            Draw_Button(
+                screen,
+                apply_button,
+                translations[
+                    "game_team_confirmed" if team_confirmed else "game_team_confirm"
+                ],
+                small_font,
+                mouse_position,
+                selected=team_confirmed,
+            )
+            if team_confirmed:
+                confirmation = Render_Pixel_Text(
+                    small_font, translations["game_team_selected"], ACCENT
+                )
+                screen.blit(
+                    confirmation,
+                    confirmation.get_rect(
+                        center=(center_x, int(height * 0.82))
+                    ),
+                )
+
+            hint = Render_Pixel_Text(
+                small_font, translations["game_team_back_hint"], WHITE
             )
             screen.blit(hint, (24, 20))
 

@@ -64,6 +64,14 @@ DEFAULT_DISPLAY_MODE = "windowed"
 BASE_MUSIC_VOLUME = 0.2
 DEFAULT_MUSIC_VOLUME = BASE_MUSIC_VOLUME
 LOCALISATION_FILES = ("main_menu.yml", "settings.yml", "game.yml")
+CHARACTER_DIR = ROOT_DIR / "gfx" / "characters"
+DIFFICULTY_LEVELS = (
+    "very_easy",
+    "easy",
+    "medium",
+    "hard",
+    "max_verstappen",
+)
 
 
 def Render_Pixel_Text(font, text, color):
@@ -75,6 +83,35 @@ def Render_Pixel_Text(font, text, color):
     )
     reduced = pygame.transform.scale(rendered, pixel_size)
     return pygame.transform.scale(reduced, rendered.get_size())
+
+
+def Load_Character_Images():
+    """Load the available team characters and return their filename keys."""
+    if not CHARACTER_DIR.is_dir():
+        raise FileNotFoundError(
+            "The character image directory is missing: {!s}".format(CHARACTER_DIR)
+        )
+    character_files = sorted(
+        CHARACTER_DIR.glob("character_*.png"),
+        key=lambda path: path.name.lower(),
+    )
+    if not character_files:
+        raise FileNotFoundError(
+            "No character images were found in {!s}".format(CHARACTER_DIR)
+        )
+    return tuple(
+        (
+            character_file.stem[len("character_"):],
+            pygame.image.load(str(character_file)).convert_alpha(),
+        )
+        for character_file in character_files
+    )
+
+
+def Get_Localised_Team_Name(character_name, translations):
+    """Return a team's localized label for its character filename key."""
+    return translations["game_team_{}".format(character_name)]
+
 
 def Draw_Button(surface, rect, text, font, mouse_position, selected=False):
     """Draw a button with hover feedback, a selection border, and centered text."""

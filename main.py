@@ -1,5 +1,12 @@
+#this version uses the idea i originaly wanted to ipmlelent but it doesnt solve the main function issue only hides it.
+
+#this works the same way but the definiton is stored at functions.py
+
+# 56 lines
+
 from pathlib import Path
 from functions import (Main)
+
 
 RESOLUTIONS = (
     (1920, 1200),

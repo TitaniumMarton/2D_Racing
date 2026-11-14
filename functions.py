@@ -1,3 +1,8 @@
+#this is the modified functions.py with the main functions definition
+
+#1432 lines
+
+
 import json
 import math
 import os
@@ -25,7 +30,6 @@ RESOLUTIONS = (
     (800, 600),
 )
 DISPLAY_MODES = ("fullscreen", "borderless", "windowed")
-
 MENU_TRANSITION_DURATION_MS = 180
 
 # Shared colors keep the helper-drawn controls consistent with the main screen.

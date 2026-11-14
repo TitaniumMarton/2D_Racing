@@ -6,7 +6,11 @@
       "slot": 1,
       "created_at": "2026-11-13T23:30:18+01:00"
     },
-    null,
+    {
+      "version": 1,
+      "slot": 2,
+      "created_at": "2026-11-14T02:37:07+01:00"
+    },
     null,
     null,
     null

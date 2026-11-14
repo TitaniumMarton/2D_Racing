@@ -254,17 +254,22 @@ def Main():
         }
         team_arrow_size = max(56, int(72 * scale))
         team_arrow_gap = max(16, int(28 * scale))
-        team_image_max_width = max(1, int(width * 0.30))
-        team_image_max_height = max(1, int(height * 0.38))
+        team_image_height = max(1, int(height * 0.30))
+        selected_image = team_characters[selected_team_index][1]
+        selected_image_width, selected_image_height = selected_image.get_size()
+        team_image_width = max(
+            1,
+            int(selected_image_width * team_image_height / selected_image_height),
+        )
         team_arrow_y = int(height * 0.50)
         team_arrow_left = pygame.Rect(
-            center_x - team_image_max_width // 2 - team_arrow_gap - team_arrow_size,
+            center_x - team_image_width // 2 - team_arrow_gap - team_arrow_size,
             team_arrow_y - team_arrow_size // 2,
             team_arrow_size,
             team_arrow_size,
         )
         team_arrow_right = pygame.Rect(
-            center_x + team_image_max_width // 2 + team_arrow_gap,
+            center_x + team_image_width // 2 + team_arrow_gap,
             team_arrow_y - team_arrow_size // 2,
             team_arrow_size,
             team_arrow_size,
@@ -1001,19 +1006,17 @@ def Main():
             team_key, team_image = team_characters[selected_team_index]
             image_cache_key = (
                 team_key,
-                team_image_max_width,
-                team_image_max_height,
+                team_image_height,
             )
             scaled_team_image = team_image_cache.get(image_cache_key)
             if scaled_team_image is None:
                 image_width, image_height = team_image.get_size()
-                image_scale = min(
-                    team_image_max_width / image_width,
-                    team_image_max_height / image_height,
-                )
                 scaled_size = (
-                    max(1, int(image_width * image_scale)),
-                    max(1, int(image_height * image_scale)),
+                    max(
+                        1,
+                        int(image_width * team_image_height / image_height),
+                    ),
+                    team_image_height,
                 )
                 scaled_team_image = pygame.transform.smoothscale(
                     team_image, scaled_size

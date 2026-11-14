@@ -1,6 +1,6 @@
-#this main.py is my attempt to solve the main functions issuee
+#this main2.py is my attempt to solve the main functions issuee
 #im trying to label parts of the code and also optimize a bit
-
+#also trying to seperate things between menu and game by using a nem Menu function
 import json
 import math
 import sys
@@ -68,14 +68,18 @@ DEFAULT_LANGUAGE = "english"
 DEFAULT_DISPLAY_MODE = "windowed"
 LOCALISATION_FILES = ("main_menu.yml", "settings.yml", "game.yml")
 
+#Loading things that are not required to be in the Main function: Avaible Languages,Load Preferences
+# using the format of varnameG format for global variables that will pe used as inputs for the main function
+languages = Available_Languages()
+resolution_indexG, languageG, display_modeG, music_volumeG = Load_Preferences(languages)
 
-def Main():
-    """Initialize Pygame and run the menu, settings, and game loop."""
-    # Initialize Pygame and load saved display, language, and music settings.
+
+
+
+
+def Main(resolution_index, language, display_mode, music_volume):
+    #this is the menu function that should only have things in it that are 100% seperate from the game itself
     pygame.init()
-
-    languages = Available_Languages()
-    resolution_index, language, display_mode, music_volume = Load_Preferences(languages)
 
     # Prepare frame timing, fonts, current screen state, and pending settings.
     clock = pygame.time.Clock()
@@ -126,6 +130,9 @@ def Main():
     team_characters = Load_Character_Images()
     team_image_cache = {}
     chooser_title_fonts = {}
+
+
+    #Music 
     if pygame.mixer.get_init() is None:
         pygame.mixer.init()
     pygame.mixer.music.load(str(MAIN_THEME_FILE))
@@ -1138,6 +1145,4 @@ def Main():
     sys.exit()
 
 
-# Start the game only when this file is run as the program entry point.
-if __name__ == "__main__":
-    Main()
+Main(resolution_indexG, languageG, display_modeG, music_volumeG)

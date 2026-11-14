@@ -1,9 +1,9 @@
 {
   "resolution": [
-    1600,
-    900
+    2560,
+    1440
   ],
   "language": "hungarian",
   "display_mode": "windowed",
-  "music_volume": 0.14112903225806453
+  "music_volume": 0.31048387096774194
 }
